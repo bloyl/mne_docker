@@ -7,6 +7,7 @@ RUN apt-get update \
     libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
     libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 \
     libxcb-xfixes0 libopengl0 libglu1-mesa libgl1-mesa-dri xvfb \
+    git make \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 USER jovyan
@@ -26,7 +27,6 @@ RUN wget https://raw.githubusercontent.com/mne-tools/mne-python/main/server_envi
 # install mne sample data...
 RUN python -c "import mne; mne.datasets.sample.data_path()"
 
-COPY test_scripts/* ./work/
 
 # allow jupyterlab for ipyvtk
 ENV DISPLAY=:99.0
@@ -42,6 +42,9 @@ USER root
 
 COPY entry.sh /
 RUN chmod a+x /entry.sh
+COPY test_scripts/* ./work/
+RUN chmod a+x ./work/*
+
 
 
 USER jovyan
