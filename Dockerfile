@@ -6,7 +6,7 @@ RUN apt-get update \
     libgl1-mesa-glx libglib2.0-0 libxkbcommon-x11-0 \
     libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
     libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 \
-    libxcb-xfixes0 libopengl0 libglu1-mesa xvfb \
+    libxcb-xfixes0 libopengl0 libglu1-mesa libgl1-mesa-dri xvfb \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 USER jovyan
