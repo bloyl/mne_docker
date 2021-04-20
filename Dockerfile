@@ -1,55 +1,59 @@
-FROM jupyter/base-notebook:python-3.8.6
+FROM frolvlad/alpine-miniconda3:latest
 
-USER root
-RUN apt-get update \
- && apt-get install  -yq --no-install-recommends \
-    libgl1-mesa-glx libglib2.0-0 libxkbcommon-x11-0 \
-    libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
-    libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 \
-    libxcb-xfixes0 libopengl0 libglu1-mesa libgl1-mesa-dri xvfb \
-    git make \
- && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apk update
 
-USER jovyan
+# Dependencies for xvfb
+RUN apk add \
+    build-base \
+    libx11-dev \ 
+    libxcursor-dev \
+    libxrandr-dev \
+    libxinerama-dev \
+    libxi-dev \
+    mesa-dev \
+    mesa-dri-gallium \
+    xvfb-run \
+    bash \
+    git
 
-# setup the conda environment
-COPY environment.yml labextensions.txt ./
-RUN wget https://raw.githubusercontent.com/mne-tools/mne-python/main/server_environment.yml \
-      && conda run conda install -y -c conda-forge conda-merge \
-      && conda-merge server_environment.yml environment.yml > this_env.yml \
-      && conda env update --name base --file  this_env.yml \
-      && conda run conda install -y nodejs \
-      && conda run jupyter labextension install $(cat ./labextensions.txt) \
-      && conda clean --all -f -y 
+# setup user
+RUN addgroup -S mne_group && adduser -S mne_user -G mne_group
 
-      # && pip install ipyvtk-simple==0.1.2 \
+# setup base conda environment
+RUN conda update python && \
+    conda install -c conda-forge pyvistaqt pyvista
 
-# RUN conda init
-# RUN pip install pyvista matplotlib \ 
-#       && pip install -U git+https://github.com/GuillaumeFavelier/mne-python.git@proto/off_screen
+# install mne
+RUN wget https://raw.githubusercontent.com/mne-tools/mne-python/main/environment.yml && \
+    conda env update --name base --file environment.yml
 
-# install mne sample data...
+# install mne-testing
+RUN wget https://raw.githubusercontent.com/mne-tools/mne-python/main/requirements_testing.txt && \
+    pip install -r requirements_testing.txt
+
+COPY entry.sh /sbin/entry.sh
+RUN chmod a+x /sbin/entry.sh
+
+# copy test scripts
+COPY test_scripts/* ./mne_test/
+RUN chown -R mne_user:mne_group ./mne_test && \
+    chmod a+x ./mne_test/*
+
+# Tell docker that all future commands should run as the appuser user
+USER mne_user
+
+# get mne sample data
 RUN python -c "import mne; mne.datasets.sample.data_path()"
 
+ENV \
+    DISPLAY=":99" \
+    XVFB_WHD="1920x1080x24" \
+    PYVISTA_OFF_SCREEN=true \
+    MNE_3D_BACKEND=pyvista
 
-# allow jupyterlab for ipyvtk
-ENV DISPLAY=:99.0
-ENV JUPYTER_ENABLE_LAB=yes
-ENV PYVISTA_USE_IPYVTK=true
-ENV PYVISTA_OFF_SCREEN=true
-ENV MNE_3D_BACKEND=offscreen
-
-# modify the CMD and start a background server first
-ENTRYPOINT ["tini", "-g", "--", "/entry.sh"]
-CMD bash
-
+ENTRYPOINT ["entry.sh"]
+CMD ["/bin/bash"]
+    
 USER root
-
-COPY entry.sh /
-RUN chmod a+x /entry.sh
-COPY test_scripts/* ./work/
-RUN chmod a+x ./work/*
-
-
-
-USER jovyan
+RUN apk add git
+USER mne_user
