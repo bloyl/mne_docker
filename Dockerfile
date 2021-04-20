@@ -24,6 +24,10 @@ RUN wget https://raw.githubusercontent.com/mne-tools/mne-python/main/server_envi
 
       # && pip install ipyvtk-simple==0.1.2 \
 
+# RUN conda init
+# RUN pip install pyvista matplotlib \ 
+#       && pip install -U git+https://github.com/GuillaumeFavelier/mne-python.git@proto/off_screen
+
 # install mne sample data...
 RUN python -c "import mne; mne.datasets.sample.data_path()"
 
@@ -33,10 +37,11 @@ ENV DISPLAY=:99.0
 ENV JUPYTER_ENABLE_LAB=yes
 ENV PYVISTA_USE_IPYVTK=true
 ENV PYVISTA_OFF_SCREEN=true
+ENV MNE_3D_BACKEND=offscreen
 
 # modify the CMD and start a background server first
 ENTRYPOINT ["tini", "-g", "--", "/entry.sh"]
-CMD start-notebook.sh
+CMD bash
 
 USER root
 
