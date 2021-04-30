@@ -20,8 +20,7 @@ RUN apk add \
 RUN addgroup -S mne_group && adduser -S mne_user -G mne_group
 
 # setup base conda environment
-RUN conda update python && \
-    conda install -c conda-forge pyvistaqt pyvista
+RUN conda update python
 
 # install mne
 RUN wget https://raw.githubusercontent.com/mne-tools/mne-python/main/environment.yml && \
