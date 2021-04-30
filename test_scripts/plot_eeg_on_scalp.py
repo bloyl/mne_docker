@@ -24,4 +24,5 @@ fig = plot_alignment(raw.info, trans, subject='sample', dig=False,
                      coord_frame='head', subjects_dir=subjects_dir)
 # Set viewing angle
 set_3d_view(figure=fig, azimuth=135, elevation=80)
+fig.plotter.show()
 fig.plotter.screenshot('/outputs/eeg_on_scalp1.png')
