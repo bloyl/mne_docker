@@ -1,47 +1,60 @@
-FROM jupyter/base-notebook:python-3.8.6
+FROM ubuntu:20.04
+ENV DEBIAN_FRONTEND=noninteractive
 
-USER root
-RUN apt-get update \
- && apt-get install  -yq --no-install-recommends \
-    libgl1-mesa-glx libglib2.0-0 libxkbcommon-x11-0 \
-    libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
-    libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 \
-    libxcb-xfixes0 libopengl0 libglu1-mesa libgl1-mesa-dri xvfb \
- && apt-get clean && rm -rf /var/lib/apt/lists/*
+ARG USER="mne_user"
+ARG HOME_DIR="/home/${USER}"
+ENV USER=${USER}
+ENV HOME_DIR=${HOME_DIR}
 
-USER jovyan
+ARG CONDA_DIR="${HOME_DIR}/miniconda3"
 
-# setup the conda environment
-COPY environment.yml labextensions.txt ./
-RUN wget https://raw.githubusercontent.com/mne-tools/mne-python/main/server_environment.yml \
-      && conda run conda install -y -c conda-forge conda-merge \
-      && conda-merge server_environment.yml environment.yml > this_env.yml \
-      && conda env update --name base --file  this_env.yml \
-      && conda run conda install -y nodejs \
-      && conda run jupyter labextension install $(cat ./labextensions.txt) \
-      && conda clean --all -f -y 
+# install xvfb
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends tzdata && \
+    apt-get install -y xvfb wget && \
+    apt-get install -y qt5-default && \
+    rm -rf /var/lib/apt/lists/*
 
-      # && pip install ipyvtk-simple==0.1.2 \
+# setup entry point
+COPY entry.sh /sbin/entry.sh
+RUN chmod a+x /sbin/entry.sh
 
-# install mne sample data...
+# setup mne user
+RUN useradd -ms /bin/bash -d ${HOME_DIR} ${USER}
+USER $USER
+WORKDIR $HOME_DIR
+
+# setup conda
+ENV PATH="${CONDA_DIR}/bin:${PATH}"
+ARG PATH="${CONDA_DIR}/bin:${PATH}"
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    sh ./Miniconda3-latest-Linux-x86_64.sh -b -p ${CONDA_DIR} && \
+    rm -f ./Miniconda3-latest-Linux-x86_64.sh && \
+    conda init
+SHELL ["/bin/bash", "--login", "-c"]
+
+# install mne
+RUN wget https://raw.githubusercontent.com/mne-tools/mne-python/main/environment.yml && \
+    conda env update --name base --file environment.yml && \
+    rm -f ./environment.yml
+
+# download mne sample data
 RUN python -c "import mne; mne.datasets.sample.data_path()"
 
-COPY test_scripts/* ./work/
+# copy test scripts
+RUN mkdir mne_tests
+COPY mne_tests/test*.py mne_tests/
 
-# allow jupyterlab for ipyvtk
-ENV DISPLAY=:99.0
-ENV JUPYTER_ENABLE_LAB=yes
-ENV PYVISTA_USE_IPYVTK=true
-ENV PYVISTA_OFF_SCREEN=true
+# make output directory for testing purposes
+RUN mkdir -p ${HOME_DIR}/output
 
-# modify the CMD and start a background server first
-ENTRYPOINT ["tini", "-g", "--", "/entry.sh"]
-CMD start-notebook.sh
+# setup environment for mne
+# MNE_3D_OPTION_ANTIALIAS is needed to avoid blank screenshots.
+# PYVISTA_OFF_SCREEN=true is *NOT* needed
+ENV \
+    MNE_3D_BACKEND=pyvista \
+    MNE_3D_OPTION_ANTIALIAS=false
 
-USER root
-
-COPY entry.sh /
-RUN chmod a+x /entry.sh
-
-
-USER jovyan
+ENTRYPOINT ["entry.sh"]
+CMD ["/bin/bash"]
