@@ -1,59 +1,60 @@
-FROM frolvlad/alpine-miniconda3:latest
+FROM ubuntu:20.04
+ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apk update
+ARG USER="mne_user"
+ARG HOME_DIR="/home/${USER}"
+ENV USER=${USER}
+ENV HOME_DIR=${HOME_DIR}
 
-# Dependencies for xvfb
-RUN apk add \
-    build-base \
-    libx11-dev \ 
-    libxcursor-dev \
-    libxrandr-dev \
-    libxinerama-dev \
-    libxi-dev \
-    mesa-dev \
-    mesa-dri-gallium \
-    xvfb-run \
-    bash \
-    git
+ARG CONDA_DIR="${HOME_DIR}/miniconda3"
 
-# setup user
-RUN addgroup -S mne_group && adduser -S mne_user -G mne_group
+# install xvfb
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends tzdata && \
+    apt-get install -y xvfb wget && \
+    apt-get install -y qt5-default && \
+    rm -rf /var/lib/apt/lists/*
 
-# setup base conda environment
-RUN conda update python && \
-    conda install -c conda-forge pyvistaqt pyvista
-
-# install mne
-RUN wget https://raw.githubusercontent.com/mne-tools/mne-python/main/environment.yml && \
-    conda env update --name base --file environment.yml
-
-# install mne-testing
-RUN wget https://raw.githubusercontent.com/mne-tools/mne-python/main/requirements_testing.txt && \
-    pip install -r requirements_testing.txt
-
+# setup entry point
 COPY entry.sh /sbin/entry.sh
 RUN chmod a+x /sbin/entry.sh
 
-# copy test scripts
-COPY test_scripts/* ./mne_test/
-RUN chown -R mne_user:mne_group ./mne_test && \
-    chmod a+x ./mne_test/*
+# setup mne user
+RUN useradd -ms /bin/bash -d ${HOME_DIR} ${USER}
+USER $USER
+WORKDIR $HOME_DIR
 
-# Tell docker that all future commands should run as the appuser user
-USER mne_user
+# setup conda
+ENV PATH="${CONDA_DIR}/bin:${PATH}"
+ARG PATH="${CONDA_DIR}/bin:${PATH}"
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    sh ./Miniconda3-latest-Linux-x86_64.sh -b -p ${CONDA_DIR} && \
+    rm -f ./Miniconda3-latest-Linux-x86_64.sh && \
+    conda init
+SHELL ["/bin/bash", "--login", "-c"]
 
-# get mne sample data
+# install mne
+RUN wget https://raw.githubusercontent.com/mne-tools/mne-python/main/environment.yml && \
+    conda env update --name base --file environment.yml && \
+    rm -f ./environment.yml
+
+# download mne sample data
 RUN python -c "import mne; mne.datasets.sample.data_path()"
 
+# copy test scripts
+RUN mkdir mne_tests
+COPY mne_tests/test*.py mne_tests/
+
+# make output directory for testing purposes
+RUN mkdir -p ${HOME_DIR}/output
+
+# setup environment for mne
+# MNE_3D_OPTION_ANTIALIAS is needed to avoid blank screenshots.
+# PYVISTA_OFF_SCREEN=true is *NOT* needed
 ENV \
-    DISPLAY=":99" \
-    XVFB_WHD="1920x1080x24" \
-    PYVISTA_OFF_SCREEN=true \
-    MNE_3D_BACKEND=pyvista
+    MNE_3D_BACKEND=pyvista \
+    MNE_3D_OPTION_ANTIALIAS=false
 
 ENTRYPOINT ["entry.sh"]
 CMD ["/bin/bash"]
-    
-USER root
-RUN apk add git
-USER mne_user

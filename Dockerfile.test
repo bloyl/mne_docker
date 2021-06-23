@@ -1,0 +1,38 @@
+FROM mne_docker:latest
+
+USER root
+RUN apt-get update && \
+    apt-get install -y git make && \
+    rm -rf /var/lib/apt/lists/*
+
+USER $USER
+WORKDIR $HOME_DIR
+
+SHELL ["/bin/bash", "--login", "-c"]
+
+# download dev version of mne
+RUN git clone https://github.com/mne-tools/mne-python.git && \
+    wget https://raw.githubusercontent.com/mne-tools/mne-python/main/requirements_testing.txt && \
+    pip install -r requirements_testing.txt && \
+    rm -rf ./requirements_testing.txt
+
+WORKDIR ${HOME_DIR}/mne-python
+RUN pip uninstall -y mne && \
+    pip install -e ./
+WORKDIR ${HOME_DIR}
+
+COPY mne_tests/launch_mne_tests.sh mne_tests/
+USER root
+RUN chmod a+x mne_tests/launch_mne_tests.sh
+USER ${USER}
+
+# grab testing data.
+RUN python -c "import mne; mne.datasets.testing.data_path(verbose=True);"
+
+ENV \
+    MNE_3D_BACKEND=pyvista \
+    MNE_3D_OPTION_ANTIALIAS=false \
+    PYVISTA_OFF_SCREEN=true
+
+ENTRYPOINT ["entry.sh"]
+CMD ["/bin/bash"]
