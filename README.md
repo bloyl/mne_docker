@@ -1,3 +1,9 @@
+# Info
+This repository has been completely superseded by https://github.com/mne-tools/mne-docker
+
+I would suggest looking there for inspirational and starting points for docker/singularity images.
+
+
 # MNE Docker
 
 The goal of the repository is to have a full [MNE](https://mne.tools/stable/index.html) environment within a docker container.
